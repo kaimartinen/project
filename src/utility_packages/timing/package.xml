@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<package>
+  <name>timing</name>
+  <version>0.0.0</version>
+  <description>The timing package</description>
+
+  <maintainer email="c.dornhege@gmail.com">Christian Dornhege</maintainer>
+
+  <!--   BSD, MIT, Boost Software License, GPLv2, GPLv3, LGPLv2.1, LGPLv3 -->
+  <license>TODO</license>
+
+  <!-- <url type="website">http://wiki.ros.org/timing</url> -->
+
+  <author email="c.dornhege@gmail.com">Christian Dornhege</author>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>roscpp</build_depend>
+  <run_depend>roscpp</run_depend>
+
+  <export>
+  </export>
+</package>
