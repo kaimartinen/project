@@ -38,19 +38,11 @@ namespace modulation {
 
   void Modulation::setEllipses(std::vector<ellipse_extraction::Ellipse> ellipses) {
     ellipses_ = ellipses;
-    // computeGamma();
   }
 
   void Modulation::updateSpeedAndPosition(Eigen::Vector3d& curr_pose, Eigen::VectorXf& curr_speed) {
     position_ = curr_pose;
     speed_ = curr_speed;
-    // computeXiWave();
-    //ROS_INFO("Position updated");
-    // for (int i = 0; i < ellipses_.size(); i++) {
-    //   ROS_INFO("position_: (%lf, %lf)", position_[0], position_[1]);
-    //   ROS_INFO("Xi_wave_i: (%lf, %lf)", xi_wave_[i][0], xi_wave_[i][1]);
-    //   ROS_INFO("ellipses_i: (%lf, %lf)",ellipses_[i].getPPoint()[0],ellipses_[i].getPPoint()[1]);
-    // }
   }
 
   void Modulation::computeXiWave() {
@@ -73,7 +65,7 @@ namespace modulation {
     std::stringstream mes;
     mes << "Gamma: ";
     for (ellipse_extraction::Ellipse ellipse : ellipses_) {
-      double gamma_i = pow((xi_wave_[i][0]/ellipse.getWidth()), 2.0 * ellipse.getP1()) + pow((xi_wave_[i][1]/ellipse.getHeight()), 2.0 * ellipse.getP2());
+      double gamma_i = pow((xi_wave_[i][0]/ellipse.getHeight()), 2.0 * ellipse.getP1()) + pow((xi_wave_[i][1]/ellipse.getWidth()), 2.0 * ellipse.getP2());
       if(gamma_i < 1.0) {
         ROS_INFO("Something wrong. Inside obstacle: %d of %d", i + 1, int(ellipses_.size()));
         ROS_INFO("gamma_i: (%lf)", gamma_i);
@@ -140,11 +132,8 @@ namespace modulation {
   }
 
   std::vector<double>  Modulation::computeHyperplane(int k) {
-    //Derivation of Gamma in ~Xi_i direction
-    // std::vector<double> n = {(1 / pow(ellipses_[k].getHeight(), 2)) * 2 * xi_wave_[k][0],
-    //   (1 / pow(ellipses_[k].getWidth(), 2)) * 2 * xi_wave_[k][1]};
-    std::vector<double> n = {(pow(xi_wave_[k][0] / ellipses_[k].getWidth(), 2.0*ellipses_[k].getP1() -1)) * 2.0,
-      (pow(xi_wave_[k][1] / ellipses_[k].getHeight(), 2.0*ellipses_[k].getP2() -1)) * 2.0};
+    std::vector<double> n = {(pow(xi_wave_[k][0] / ellipses_[k].getHeight(), 2.0*ellipses_[k].getP1() -1)) * 2.0,
+      (pow(xi_wave_[k][1] / ellipses_[k].getWidth(), 2.0*ellipses_[k].getP2() -1)) * 2.0};
     return n;
   };
 
@@ -187,8 +176,8 @@ namespace modulation {
     modulation_ << 1, 0,
                    0, 1;
     std::stringstream mes;
-    bool out_mod = false;
     computeGamma();
+    bool out_mod = false;
     for (int k = 0 ; k < ellipses_.size(); k++) {
       Eigen::MatrixXf d_k = assembleD_k(k);
       Eigen::MatrixXf e_k = assembleE_k(k);
