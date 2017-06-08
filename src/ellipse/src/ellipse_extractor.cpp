@@ -78,6 +78,7 @@ namespace ellipse_extraction {
     marker_msg.color.g = 0.0;
     marker_msg.color.b = 1.0;
     marker_msg.color.a = 0.2;
+    marker_msg.lifetime = ros::Duration(0.5);
     // marker_msg.header.frame_id = "base_laser_link";
     marker_msg.header.frame_id = "map";
     marker_msg.header.stamp = ros::Time::now();
@@ -121,8 +122,8 @@ namespace ellipse_extraction {
       startVec = {ellipses_[i].getStart()[0], ellipses_[i].getStart()[1]};
       endVec = {ellipses_[i].getEnd()[0], ellipses_[i].getEnd()[1]};
 
-      startVec =  startVec;
-      endVec = endVec;
+      startVec = ellipses_[i].getR() * startVec;
+      endVec = ellipses_[i].getR() * endVec;
 
       geometry_msgs::Point point;
       point.x = startVec(0);

@@ -20,13 +20,12 @@ class Modulation {
 private:
   std::vector<ellipse_extraction::Ellipse> ellipses_;
   Eigen::Vector3d position_;
+  Eigen::Vector3d gripper_position_;
   Eigen::VectorXf speed_;
 
   std::vector<double> lambda_;
   std::vector<double> gamma_;
   std::vector<std::vector<double> > xi_wave_;
-  double p_;
-  double rho_;
 
   void computeXiWave();
   void computeGamma();
@@ -45,7 +44,7 @@ public:
 
   Eigen::MatrixXf modulation_;
 
-  void updateSpeedAndPosition(Eigen::Vector3d& curr_pose, Eigen::VectorXf& curr_speed);
+  void updateSpeedAndPosition(Eigen::Vector3d& curr_pose, Eigen::VectorXf& curr_speed,Eigen::Vector3d& curr_gripper_pose);
   void computeModulationMatrix(Eigen::Matrix2f R_world);
 
   std::vector<ellipse_extraction::Ellipse>& getEllipses();

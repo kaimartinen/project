@@ -10,13 +10,14 @@ nh_(nh)
 	_nr_modes = nr_modes;
 	_kP = 400;
 	_kV = 10;
-	_max_speed_gripper = 2.0;
-	_max_speed_base = 3.0;
+	_max_speed_gripper = 2.9;
+	_max_speed_base = 1.9;
 
 	manager_.reset(new modulation::Modulation_manager(nh));
 
 	Mu_pub_ = nh.advertise<visualization_msgs::MarkerArray>("/GMM/Mu", 1, true);
 	Traj_pub_ = nh.advertise<geometry_msgs::PoseArray>("/PRCommunicator/Precomp_Trajectory_Raw", 1,true);
+	Traj_pub2_ = nh.advertise<geometry_msgs::PoseArray>("/PRCommunicator/Precomp_Trajectory", 1,true);
 	ROS_INFO("GMM initilaized");
 }
 
@@ -226,11 +227,9 @@ void GaussianMixtureModel::integrateModel(double current_time,double dt,Eigen::V
 	}
 
 	// Hier muss dann die Modulation der Geschwindigkeit basierend auf den ellipsen eingefügt werden!!!!!
-	// ROS_INFO("Speed: %lf, %lf, %lf", (*current_speed)[7], (*current_speed)[8], (*current_speed)[9]);
-	//ROS_INFO("Current base speed before run  : %lf, %lf, %lf", (*current_speed)[7], (*current_speed)[8], (*current_speed)[9]);
+	// ROS_INFO("Current base speed before run  : %lf, %lf, %lf", (*current_speed)[7], (*current_speed)[8], (*current_speed)[9]);
 	*current_speed = manager_->run(*current_pose, *current_speed);
-	//ROS_INFO("Base speed modulated after run: %lf, %lf, %lf", (*current_speed)[7], (*current_speed)[8], (*current_speed)[9]);
-	// ROS_INFO("Speed after: %lf, %lf, %lf", (*current_speed)[7], (*current_speed)[8], (*current_speed)[9]);
+	// ROS_INFO("Base speed modulated after run: %lf, %lf, %lf", (*current_speed)[7], (*current_speed)[8], (*current_speed)[9]);
 
 	if(std::abs(current_speed->coeffRef(7)) >_max_speed_base || std::abs(current_speed->coeffRef(8)) >_max_speed_base || std::abs(current_speed->coeffRef(9)) >_max_speed_base)
 	{
@@ -240,7 +239,7 @@ void GaussianMixtureModel::integrateModel(double current_time,double dt,Eigen::V
 	}
 
 	// update position
-	*current_pose = *current_pose + *current_speed*dt + currAcc*(dt*dt*0.5);
+	*current_pose = *current_pose + *current_speed*dt; //+ currAcc*(dt*dt*0.5);
 	// update rotation
 	double alpha_N = (tf::Vector3((*current_speed)(3),(*current_speed)(4),(*current_speed)(5))).length()*dt;
 	tf::Quaternion Q(tf::Vector3((*current_speed)(3),(*current_speed)(4),(*current_speed)(5)).normalized(),alpha_N);
@@ -249,10 +248,10 @@ void GaussianMixtureModel::integrateModel(double current_time,double dt,Eigen::V
 	tf::Quaternion Q3(tf::Vector3(0.0,0.0,1.0),(*current_speed)(12)*dt);
 	tf::Quaternion Q4 = Q3*current_base_q;
 
-	(*current_pose)(3) = current_desired_gripper_q.x();//Q2.x();
-	(*current_pose)(4) = current_desired_gripper_q.y();//Q2.y();
-	(*current_pose)(5) = current_desired_gripper_q.z();//Q2.z();
-	(*current_pose)(6) = current_desired_gripper_q.w();//Q2.w();
+	(*current_pose)(3) = Q2.x();//current_desired_gripper_q.x();//
+	(*current_pose)(4) = Q2.y();//current_desired_gripper_q.y();//
+	(*current_pose)(5) = Q2.z();//current_desired_gripper_q.z();//
+	(*current_pose)(6) = Q2.w();//current_desired_gripper_q.w();//
 
 	(*current_pose)(10) = 0.0;
 	(*current_pose)(11) = 0.0;
@@ -261,6 +260,51 @@ void GaussianMixtureModel::integrateModel(double current_time,double dt,Eigen::V
 
 }
 
+void GaussianMixtureModel::Trajectory2PoseArray(geometry_msgs::PoseArray* poseArray_in,
+                          geometry_msgs::PoseArray* poseArray_transformed)
+{
+    poseArray_transformed->header.stamp = ros::Time(10.0);
+    poseArray_transformed->header.frame_id = "map";
+    // add gripper pose
+    for (int i = 0;i<poseArray_in->poses.size();i +=3)
+    {
+        // Eigen::Isometry3d poseBase = trajectoryBase[i]->estimate();
+        // Eigen::Isometry3d poseGripper = trajectoryGripper[i]->estimate();
+        // Eigen::Isometry3d poseWristLink = poseGripper;
+        // // transform gripper poses to wrist poses (end of chain)
+        // poseWristLink.translation() = poseWristLink.translation() -  poseGripper.linear()*Eigen::Vector3d(0.18,0.0,0.0);
+        // Eigen::Isometry3d poseRelative = poseWristLink;
+        // geometry_msgs::Pose poseMsg;
+        // geometry_msgs::Point positionMsg;
+        // geometry_msgs::Quaternion orientationMsg;
+        // positionMsg.x = poseRelative.translation().x();
+        // positionMsg.y = poseRelative.translation().y();
+        // positionMsg.z = poseRelative.translation().z();
+        // poseMsg.position = positionMsg;
+        // Eigen::Quaterniond Q(poseRelative.linear());
+        // orientationMsg.x = Q.x();
+        // orientationMsg.y = Q.y();
+        // orientationMsg.z = Q.z();
+        // orientationMsg.w = Q.w();
+        // poseMsg.orientation = orientationMsg;
+
+        tf::Transform T_gripper_pose;
+        tf::poseMsgToTF(poseArray_in->poses[i],T_gripper_pose);
+
+        tf::Transform T;
+		T.setOrigin(tf::Vector3(-0.18,0.0,0.0));
+		T.setRotation(tf::Quaternion(0,0,0,1));
+		T_gripper_pose = T_gripper_pose*T;
+        geometry_msgs::Pose poseMsg;
+        tf::poseTFToMsg(T_gripper_pose,poseMsg);
+
+        poseArray_transformed->poses.push_back(poseMsg);
+        // add torso_linft_link poses
+        poseArray_transformed->poses.push_back(poseArray_in->poses[i+1]);
+    }
+    
+    
+}
 
 
 
@@ -278,7 +322,7 @@ void GaussianMixtureModel::precomputeTrajectory(int nrPoints,std::vector<geometr
 	geometry_msgs::Pose current_base_pose;
 	tf::poseTFToMsg(*tf_base_pose,current_base_pose);
 	double current_time = 0;
-	double dt = 1.0/nrPoints;
+	double dt = 0.0003;//1.0/nrPoints;
 
 	Eigen::VectorXf eigen_current_pose(14);
 	eigen_current_pose << tf_gripper_pose->getOrigin().getX(),tf_gripper_pose->getOrigin().getY(), tf_gripper_pose->getOrigin().getZ(),
@@ -316,10 +360,16 @@ void GaussianMixtureModel::precomputeTrajectory(int nrPoints,std::vector<geometr
 		torso_points->push_back(current_base_pose);
 		trajectory_pose_array.poses.push_back(current_gripper_pose);
 		trajectory_pose_array.poses.push_back(current_base_pose);
+		trajectory_pose_array.poses.push_back(current_gripper_pose);
 	}
 
 	ros::Duration(1.0).sleep();
     Traj_pub_.publish(trajectory_pose_array);
+
+    geometry_msgs::PoseArray poseArray_transformed;
+    Trajectory2PoseArray(&trajectory_pose_array, &poseArray_transformed);
+    Traj_pub2_.publish(poseArray_transformed);
+    ROS_INFO("Trajectory precomputed");
 }
 
 

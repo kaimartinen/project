@@ -118,8 +118,8 @@ void RobotDriver::executeAction(const std_msgs::String msg)
 
 	std::vector<geometry_msgs::Pose> gripper_points;
 	std::vector<geometry_msgs::Pose> torso_points;
-	_gaussian_mixture_model->precomputeTrajectory(5000,&gripper_points,&torso_points,&current_gripper_transform,&current_base_transform);
-	// return;
+	//_gaussian_mixture_model->precomputeTrajectory(3600,&gripper_points,&torso_points,&current_gripper_transform,&current_base_transform);
+	//return;
 
 
 
@@ -203,7 +203,7 @@ void RobotDriver::executeAction(const std_msgs::String msg)
 		eigen_current_pose(8) = current_base_transform.getOrigin().getY();
 		eigen_current_pose(9) = current_base_transform.getOrigin().getZ();
 		eigen_current_pose(10) = current_base_transform.getRotation().x();
-		eigen_current_pose(11) = current_base_transform.getRotation().y(); 
+		eigen_current_pose(11) = current_base_transform.getRotation().y();
 		eigen_current_pose(12) = current_base_transform.getRotation().z();
 		eigen_current_pose(13) = current_base_transform.getRotation().w();
 		eigen_current_speed(7) = base_cmd.linear.x;
@@ -215,7 +215,7 @@ void RobotDriver::executeAction(const std_msgs::String msg)
 		runningTime +=  dt;
 		lastTime = currentTime;
 		// ROS_INFO("Time elapsed: (%g/%g) dt: %g",runningTime,1.2*goal_transform.stamp_.toSec(),dt);
-		// do integration step 
+		// do integration step
 		_gaussian_mixture_model->integrateModel(runningTime, 5*dt,&eigen_current_pose,&eigen_current_speed);
 		if(eigen_current_pose(7) != eigen_current_pose(7))
 		{
@@ -628,7 +628,7 @@ void RobotDriver::followTrajectory(const geometry_msgs::PoseArray msg)
 		}
 
 		// TODO: calculate desired pose based on model, currentPose and time
-		// 
+		//
 		//
 		//
 		//

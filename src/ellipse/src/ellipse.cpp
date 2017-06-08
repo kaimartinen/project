@@ -5,14 +5,15 @@
 namespace ellipse_extraction
 {
 
-double Ellipse::sBuffer = 0.45;
+double Ellipse::sBuffer = 0.5;
 
 Ellipse::Ellipse(const line_extraction::Line &line, const double height, const double width):
   _line(line),
   _height((line.length() / 2) + sBuffer),
   _width(sBuffer),
   _p1(5.0),
-  _p2(5.0)
+  _p2(5.0),
+  _rho(1.02)
 {
   double norm_length = sqrt(pow(_line.getStart()[0] - _line.getEnd()[0], 2) + pow(_line.getStart()[1] - _line.getEnd()[1], 2));
   boost::array<double, 2> norm = {{(_line.getEnd()[0] - _line.getStart()[0]) / norm_length, (_line.getEnd()[1] - _line.getStart()[1]) / norm_length}};
@@ -25,13 +26,15 @@ Ellipse::Ellipse(const line_extraction::Line &line, const double height, const d
   double cosangle = cos(_alpha);
   double sinangle = sin(_alpha);
   _R << cosangle ,-sinangle , sinangle,cosangle;
+  _type = "obstacle";
 }
 
 Ellipse::Ellipse(const laser_line_extraction::LineSegment &lineSeg):
   _line(),
   _width(sBuffer),
   _p1(5.0),
-  _p2(5.0)
+  _p2(5.0),
+  _rho(1.02)
 {
   const boost::array<double, 4> cov = {lineSeg.covariance[0], lineSeg.covariance[1], lineSeg.covariance[2], lineSeg.covariance[3]};
   const boost::array<double, 2> start = {lineSeg.start[0], lineSeg.start[1]};
@@ -49,7 +52,33 @@ Ellipse::Ellipse(const laser_line_extraction::LineSegment &lineSeg):
   double cosangle = cos(_alpha);
   double sinangle = sin(_alpha);
   _R << cosangle ,-sinangle , sinangle,cosangle;
+  _type = "obstacle";
 }
+
+
+// Ellipse build to represent the IR of the Robot
+Ellipse::Ellipse(double posx,double posy, std::string type):
+  _line(),
+  _p1(1.0),
+  _p2(1.0)
+{
+  _p_point = {{posx, posy}};
+  _type = type;
+  _R << 1.0, 0.0, 0.0, 1.0;
+  if(type == "inner")
+  {
+    _width = 0.05;
+    _height = 0.05;
+    _rho = 0.005;
+  }
+  else
+  {
+    _width = 0.95;
+    _height = 0.95;
+    _rho = 0.1;
+  }
+}
+
 
 Ellipse::~Ellipse()
 {
@@ -97,6 +126,10 @@ double Ellipse::getAlpha() {
   return _alpha;
 }
 
+double Ellipse::getRho() {
+  return _rho;
+}
+
 Eigen::Matrix2f Ellipse::getR() {
   return _R;
 }
@@ -107,6 +140,14 @@ line_extraction::Line Ellipse::getLine() {
 
 boost::array<double, 2>& Ellipse::getPPoint() {
   return _p_point;
+}
+
+void Ellipse::setPPoint(double x, double y) {
+  _p_point = {{x, y}};
+}
+
+std::string Ellipse::getType() {
+  return _type;
 }
 
 }

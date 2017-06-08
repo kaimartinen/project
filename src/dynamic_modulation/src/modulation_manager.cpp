@@ -10,7 +10,7 @@ namespace modulation {
   ellipses_updated_(false)
   {
     ellipse_sub_ = m_.subscribe("ellipses", 1000, &Modulation_manager::callback_ellipse, this);
-    listener_.waitForTransform("base_laser_link", "map", ros::Time(0), ros::Duration(10.0));
+    listener_.waitForTransform("map", "base_laser_link", ros::Time(0), ros::Duration(10.0));
     ROS_INFO("Modulation_manager started");
   }
 
@@ -21,7 +21,7 @@ namespace modulation {
   ellipses_updated_(false)
   {
     ellipse_sub_ = m_.subscribe("ellipses", 1000, &Modulation_manager::callback_ellipse, this);
-    listener_.waitForTransform("base_laser_link", "map", ros::Time(0), ros::Duration(10.0));
+    listener_.waitForTransform("map", "base_laser_link", ros::Time(0), ros::Duration(10.0));
 
   }
 
@@ -51,7 +51,7 @@ namespace modulation {
     tf::StampedTransform map_base_transform;
     try
     {
-      listener_.lookupTransform("base_laser_link", "map", ros::Time(0), map_base_transform);
+      listener_.lookupTransform("map", "base_laser_link", ros::Time(0), map_base_transform);
     }
     catch (tf::TransformException ex)
     {
@@ -63,12 +63,16 @@ namespace modulation {
     trans[0] = curr_pose(7);
     trans[1] = curr_pose(8);
     trans[2] = curr_pose(9);
-    // trans = affine.inverse() * trans;
+    Eigen::Vector3d curr_gripper_pose;
+    curr_gripper_pose[0] = curr_pose(0);
+    curr_gripper_pose[1] = curr_pose(1);
+    curr_gripper_pose[2] = curr_pose(2);
+        // trans = affine.inverse() * trans;
     Eigen::Matrix2f R_world;
     R_world = affine.linear().topLeftCorner<2,2>().cast <float> ();
     // Eigen::MatrixXf f = d.cast <float> ()
     running_ = true;
-    modulation_.updateSpeedAndPosition(trans, curr_speed);
+    modulation_.updateSpeedAndPosition(trans, curr_speed,curr_gripper_pose);
 
     // if (ellipses_updated_)
     // {

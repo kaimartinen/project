@@ -50,6 +50,8 @@ class GaussianMixtureModel
 	void precomputeTrajectory(int nrPoints,std::vector<geometry_msgs::Pose>* waypointsWorld,
 							  std::vector<geometry_msgs::Pose>* torsoPoints,tf::Transform* gripper_pose,
 							  tf::Transform* base_pose);
+	void Trajectory2PoseArray(geometry_msgs::PoseArray* poseArray_in,
+                          geometry_msgs::PoseArray* poseArray_transformed);
 
 
   	int getNr_modes() const { return _nr_modes; };
@@ -85,6 +87,7 @@ class GaussianMixtureModel
 	ros::NodeHandle nh_;
 	ros::Publisher Mu_pub_;
 	ros::Publisher Traj_pub_;
+	ros::Publisher Traj_pub2_;
 	boost::shared_ptr<modulation::Modulation_manager> manager_;
   	// modulation::Modulation_manager manager_;
 

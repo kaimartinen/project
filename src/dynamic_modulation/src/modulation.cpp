@@ -11,8 +11,7 @@ namespace modulation {
   position_(curr_position)
   {
     modulation_ << 1,0,0,1;
-    p_ = 5.0;
-    rho_ = 0.02;
+    gripper_position_ << 0.0,0.0,0.0;
   }
 
   Modulation::Modulation() :
@@ -23,8 +22,7 @@ namespace modulation {
     speed_ << 1, 1, 1;
     position_ << 1, 1, 1;
     modulation_ << 1,0,0,1;
-    p_ = 5.0;
-    rho_ = 0.02;
+    gripper_position_ << 0.0,0.0,0.0;
   }
 
   Modulation::~Modulation()
@@ -37,12 +35,28 @@ namespace modulation {
   }
 
   void Modulation::setEllipses(std::vector<ellipse_extraction::Ellipse> ellipses) {
+
+
+    bool irm_modulation = true;
+    if(irm_modulation)
+    {
+      ellipses.push_back(ellipse_extraction::Ellipse(gripper_position_[0],gripper_position_[1],"inner"));
+      ellipses.push_back(ellipse_extraction::Ellipse(gripper_position_[0],gripper_position_[1],"outter"));
+    }
     ellipses_ = ellipses;
   }
 
-  void Modulation::updateSpeedAndPosition(Eigen::Vector3d& curr_pose, Eigen::VectorXf& curr_speed) {
+
+  void Modulation::updateSpeedAndPosition(Eigen::Vector3d& curr_pose, Eigen::VectorXf& curr_speed,Eigen::Vector3d& curr_gripper_pose) {
     position_ = curr_pose;
     speed_ = curr_speed;
+    gripper_position_ = curr_gripper_pose;
+    for (int k = 0 ; k < ellipses_.size(); k++) {
+      if(ellipses_[k].getType() == "outter" || ellipses_[k].getType() == "inner")
+      {
+        ellipses_[k].setPPoint(gripper_position_[0], gripper_position_[1]);
+      }
+    }
   }
 
   void Modulation::computeXiWave() {
@@ -65,18 +79,32 @@ namespace modulation {
     std::stringstream mes;
     mes << "Gamma: ";
     for (ellipse_extraction::Ellipse ellipse : ellipses_) {
-      double gamma_i = pow((xi_wave_[i][0]/ellipse.getHeight()), 2.0 * ellipse.getP1()) + pow((xi_wave_[i][1]/ellipse.getWidth()), 2.0 * ellipse.getP2());
-      if(gamma_i < 1.0) {
-        ROS_INFO("Something wrong. Inside obstacle: %d of %d", i + 1, int(ellipses_.size()));
-        ROS_INFO("gamma_i: (%lf)", gamma_i);
+      double gamma_i = pow((xi_wave_[i][0]/ellipse.getHeight()), 2*ellipse.getP1()) + pow((xi_wave_[i][1]/ellipse.getWidth()), 2*ellipse.getP2());
+
+      if(ellipse.getType() == "outter")
+      {
+        gamma_i = 1.0/gamma_i;
+      }
+      // double gamma_i = pow((xi_wave_[i][0]/ellipse.getWidth()), 2.0*p_) + pow((xi_wave_[i][1]/ellipse.getHeight()), 2.0*p_);
+      if(gamma_i < 1.005) {
+
+        if(ellipse.getType() != "outter")
+        {
+          gamma_.push_back(1.0001);
+          ROS_INFO("Something wrong. Inside obstacle: %d of %d (%s), gamma_i: (%lf), with weight: %g ", i + 1, int(ellipses_.size()),ellipse.getType().c_str(), gamma_i, computeWeight(i));
+        }
+        else
+          gamma_.push_back(1.005);
+
         in_collision = true;
         gamma_i = 1.0001;
       }
-      gamma_.push_back(gamma_i);
-      if(gamma_[i] < 1.01)
-        ROS_INFO("test");
       else
-      mes  << i << ": " << gamma_i << " ";
+        gamma_.push_back(gamma_i);
+      // if(gamma_[i] < 1.01)
+      //   ROS_INFO("test");
+      // else
+        mes  << i << " " << ellipse.getType().c_str() << ": " << gamma_i << " Xi:(" << xi_wave_[i][0] << " " << xi_wave_[i][1] << ") " << std::endl;
 
       i++;
     }
@@ -103,19 +131,41 @@ namespace modulation {
   std::vector<double> Modulation::computeEigenvalue(int k) {
     std::vector<double> lambda;
     double w = computeWeight(k);
-    if (ellipses_.size() > 1) {
-      lambda = {1.0 - (w / pow(fabs(gamma_[k]),1.0/rho_)), 1.0 + (w / pow(fabs(gamma_[k]),1.0/rho_))};
-    } else{
-      lambda = {1.0 - (1.0 / pow(fabs(gamma_[k]),1.0/rho_)), 1.0 + (1.0 / pow(fabs(gamma_[k]),1.0/rho_))};
+
+    if(ellipses_[k].getType() == "outter")
+    {
+      lambda = {1.0 - (w / pow(fabs(gamma_[k]),1.0/ellipses_[k].getRho())), 1.0};
+      std::vector<double> n = computeHyperplane(k);
+      if(n[0] * speed_(7) + n[1] * speed_(8) < 0.0)
+      {
+        lambda[0] = 2 - lambda[0];
+      }
+      if(gamma_[k] > 2.7)
+      {
+        lambda[0] = 1.0;
+      }
     }
-    if(gamma_[k] < 2.0) {
-        ROS_INFO("gamma_[k]: (%lf), weight: %g, lambda: (%g,%g)", gamma_[k],w,lambda[0],lambda[1]);
+    else if (ellipses_[k].getType() == "inner")
+    {
+      lambda = {1.0 - (w / pow(fabs(gamma_[k]),1.0/ellipses_[k].getRho())), 1.0 };
+      std::vector<double> n = computeHyperplane(k);
+      if(n[0] * speed_(7) + n[1] * speed_(8) > 0.0)
+        lambda[0] = 2 - lambda[0];
+      // else if ()
+      //   lambda[0] = 1.0;
     }
-    /*ROS_INFO("weight %d: %lf", k, w);
-    ROS_INFO("gamma %d: (%lf)", k, gamma_[k]);
-    ROS_INFO("Lambda berechnung %d: (%lf, %lf)", k, 1.0 - (w / (gamma_[k])), 1.0 + (w / (gamma_[k])));
-    ROS_INFO("Lambda berechnung mit abs %d: (%lf, %lf)", k, 1.0 - (w / fabs(gamma_[k])), 1.0 + (w / fabs(gamma_[k])));
-    ROS_INFO("Lambda %d: (%lf, %lf)", k, lambda[0], lambda[1]);*/
+    else
+    {
+      lambda = {1.0 - (w / pow(fabs(gamma_[k]),1.0/ellipses_[k].getRho())), 1.0 + (w / pow(fabs(gamma_[k]),1.0/ellipses_[k].getRho()))};
+    }
+
+
+    // if (ellipses_.size() > 1) {
+    //   lambda = {1.0 - (w / pow(fabs(gamma_[k]),1.0/ellipses_[k].getRho())), 1.0 + (w / pow(fabs(gamma_[k]),1.0/ellipses_[k].getRho()))};
+    // } else{
+    //   lambda = {1.0 - (1.0 / pow(fabs(gamma_[k]),1.0/ellipses_[k].getRho())), 1.0 + (1.0 / pow(fabs(gamma_[k]),1.0/ellipses_[k].getRho()))};
+    // }
+
     return lambda;
   }
 
@@ -132,11 +182,11 @@ namespace modulation {
   }
 
   std::vector<double>  Modulation::computeHyperplane(int k) {
-    std::vector<double> n = {(pow(xi_wave_[k][0] / ellipses_[k].getHeight(), 2.0*ellipses_[k].getP1() -1)) * 2.0,
-      (pow(xi_wave_[k][1] / ellipses_[k].getWidth(), 2.0*ellipses_[k].getP2() -1)) * 2.0};
+    //Derivation of Gamma in ~Xi_i direction
+    std::vector<double> n = {(pow(xi_wave_[k][0] / ellipses_[k].getHeight(), 2.0*ellipses_[k].getP1() -1))*2*ellipses_[k].getP1() /ellipses_[k].getHeight(),
+      (pow(xi_wave_[k][1] / ellipses_[k].getWidth(), 2.0*ellipses_[k].getP2() -1)) *2*ellipses_[k].getP2() /ellipses_[k].getWidth()};
     return n;
   };
-
 
   std::vector<std::vector<double> > Modulation::computeEBase(int k, std::vector<double> normal) {
     int d = 2;
@@ -154,8 +204,6 @@ namespace modulation {
     }
     return base;
   };
-
-
 
   Eigen::MatrixXf Modulation::assembleE_k(int k) {
     Eigen::MatrixXf e_k(2,2);
@@ -181,11 +229,12 @@ namespace modulation {
     for (int k = 0 ; k < ellipses_.size(); k++) {
       Eigen::MatrixXf d_k = assembleD_k(k);
       Eigen::MatrixXf e_k = assembleE_k(k);
-      Eigen::MatrixXf res = (R_world*ellipses_[k].getR()*e_k * d_k * e_k.inverse()*ellipses_[k].getR().transpose()*R_world.transpose());
-      modulation_ = (modulation_ * res);
+      // Eigen::MatrixXf res = (R_world*ellipses_[k].getR()*e_k * d_k * e_k.inverse()*ellipses_[k].getR().transpose()*R_world.transpose());
+      Eigen::MatrixXf res = (ellipses_[k].getR()*e_k * d_k * e_k.inverse()*ellipses_[k].getR().transpose());
+      modulation_ = (res * modulation_);
       if(gamma_[k] < 2.0)
-        out_mod = true;
-    //  mes << k << ": d_k" << d_k.format(CommaInitFmt) << " e_k" << e_k.format(CommaInitFmt) << " res" << res.format(CommaInitFmt) << std::endl;
+        out_mod = false;
+        mes << k << ": d_k" << d_k.format(CommaInitFmt) << " e_k" << e_k.format(CommaInitFmt) << " res" << res.format(CommaInitFmt) << std::endl;
     }
     if(out_mod)
     {
@@ -196,16 +245,12 @@ namespace modulation {
   }
 
   Eigen::VectorXf Modulation::compModulation(Eigen::Matrix2f R_world) {
-    //std::stringstream mes;
-    //mes << "Speed before" << speed_.format(CommaInitFmt);
     computeModulationMatrix(R_world);
     Eigen::VectorXf d2(2);
     d2 << speed_[7], speed_[8];
     d2 = modulation_ * d2;
-    //mes << "result" << d2.format(CommaInitFmt);
     speed_(7) = d2[0];
     speed_(8) = d2[1];
-    // ROS_INFO_STREAM(mes.str());
     return speed_;
   }
 
